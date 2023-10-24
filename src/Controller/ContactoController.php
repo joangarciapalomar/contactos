@@ -89,6 +89,17 @@ class ContactoController extends AbstractController
         }
     }
 
+    #[Route('/contactos', name: 'app_listado_contactos')]
+    public function index(ManagerRegistry $doctrine): Response
+    {
+
+        $repositorio = $doctrine->getRepository(Contacto::class);
+        $contactos = $repositorio->findAll();
+
+        return $this->render('lista_contactos.html.twig', [
+            'controller_name' => 'ListadoController', "contactos" => $contactos
+        ]);
+    }
 
     #[Route('/contacto/{codigo}', name: 'ficha_contacto')]
     public function ficha(ManagerRegistry $doctrine, $codigo): Response

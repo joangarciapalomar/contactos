@@ -1,25 +1,26 @@
 {% extends 'base.html.twig' %}
 
-{% block title %}Register{% endblock %}
+{% block title %}Register
+{% endblock %}
 
 {% block body %}
-    <h1>Regístrate</h1>
+	<h1>Regístrate</h1>
 
-    {{ form_errors(registrationForm) }}
+	{{ form_errors(registrationForm) }}
 
-    {{ form_start(registrationForm) }}
-        {{ form_row(registrationForm.email) }}
-        {{ form_row(registrationForm.plainPassword, {
+	{{ form_start(registrationForm) }}
+	{{ form_row(registrationForm.email) }}
+	{{ form_row(registrationForm.plainPassword, {
             label: 'Contraseña'
         }) }}
-        {{ form_row(registrationForm.agreeTerms, {
+	{{ form_row(registrationForm.agreeTerms, {
             label: "Acepto los términos"
         }) }}
 
-        <button type="submit" class="btn">Regístrate</button>
-        ¿Ya tienes una cuenta?
-    <button>
-				<a href="{{ path('app_login') }}" style="text-decoration: none; color: black;">Loguea</a>
-			</button>
-    {{ form_end(registrationForm) }}
+	<button type="submit" class="btn btn-lg btn-primary">Regístrate</button>
+	¿Ya tienes una cuenta?
+	<button class="btn btn-primary">
+		<a href="{{ path('app_login') }}" style="text-decoration: none; color: white;">Loguea</a>
+	</button>
+	{{ form_end(registrationForm) }}
 {% endblock %}

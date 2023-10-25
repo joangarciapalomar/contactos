@@ -1,0 +1,14 @@
+button a {
+    text-decoration: none; 
+    color: white;
+}
+
+button a:hover {
+    color: white;
+}
+.btn-eliminar{
+    background-color: red;
+}
+.btn-eliminar a {
+    color: white;
+}

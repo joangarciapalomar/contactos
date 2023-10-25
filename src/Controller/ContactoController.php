@@ -10,6 +10,7 @@ use App\Entity\Contacto;
 use App\Entity\Provincia;
 use App\Form\ContactoType;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Session\SessionInterface;
 
 
 
@@ -23,52 +24,64 @@ class ContactoController extends AbstractController
         9 => ["nombre" => "Nora Jover", "telefono" => "54565859", "email" => "norajover@ieselcaminas.org"]
     ];
 
+    /*============================================================================================== */
     #[Route('/contacto/nuevo', name: 'nuevo_contacto')]
     public function nuevo(ManagerRegistry $doctrine, Request $request): Response
     {
         $contacto = new Contacto();
 
         $formulario = $this->createForm(ContactoType::class, $contacto);
-            $formulario->handleRequest($request);
+        $formulario->handleRequest($request);
 
-            if ($formulario->isSubmitted() && $formulario->isValid()){
-                $contacto = $formulario->getData();
-                $entityManager = $doctrine->getManager();
-                $entityManager->persist($contacto);
-                $entityManager->flush();
-                return $this->redirectToRoute('ficha_contacto', ["codigo" => $contacto->getId()]);
-            }
+        if ($formulario->isSubmitted() && $formulario->isValid()) {
+            $contacto = $formulario->getData();
+            $entityManager = $doctrine->getManager();
+            $entityManager->persist($contacto);
+            $entityManager->flush();
+            return $this->redirectToRoute('ficha_contacto', ["codigo" => $contacto->getId()]);
+        }
 
-            return $this->render('nuevo.html.twig', array('formulario' => $formulario->createView()));
+        return $this->render('nuevo.html.twig', array('formulario' => $formulario->createView()));
     }
+    /*============================================================================================== */
 
+    /*============================================================================================== */
     #[Route('/contacto/editar/{codigo}', name: 'editar_contacto')]
-    public function editar(ManagerRegistry $doctrine, Request $request, $codigo) {
-        $repositorio = $doctrine->getRepository(Contacto::class);
-    
-        $contacto = $repositorio->find($codigo);
-        if ($contacto){
-            $formulario = $this->createForm(ContactoType::class, $contacto);
-    
-            $formulario->handleRequest($request);
-    
-            if ($formulario->isSubmitted() && $formulario->isValid()) {
-                $contacto = $formulario->getData();
-                $entityManager = $doctrine->getManager();
-                $entityManager->persist($contacto);
-                $entityManager->flush();
-                return $this->redirectToRoute('ficha_contacto', ["codigo" => $contacto->getId()]);
+    public function editar(ManagerRegistry $doctrine, Request $request, $codigo, SessionInterface $session)
+    {
+        if ($this->getUser()) {
+            $repositorio = $doctrine->getRepository(Contacto::class);
+
+            $contacto = $repositorio->find($codigo);
+            if ($contacto) {
+                $formulario = $this->createForm(ContactoType::class, $contacto);
+
+                $formulario->handleRequest($request);
+
+                if ($formulario->isSubmitted() && $formulario->isValid()) {
+                    $contacto = $formulario->getData();
+                    $entityManager = $doctrine->getManager();
+                    $entityManager->persist($contacto);
+                    $entityManager->flush();
+                    return $this->redirectToRoute('ficha_contacto', ["codigo" => $contacto->getId()]);
+                }
+                return $this->render('editar.html.twig', array(
+                    'formulario' => $formulario->createView()
+                ));
+            } else {
+                return $this->render('ficha_contacto.html.twig', [
+                    'contacto' => NULL
+                ]);
             }
-            return $this->render('editar.html.twig', array(
-                'formulario' => $formulario->createView()
-            ));
-        }else{
-            return $this->render('ficha_contacto.html.twig', [
-                'contacto' => NULL
-            ]);
+        } else {
+            $session->set('redirect_to', 'editar_contacto');
+            $session->set('codigo', $codigo);
+            return $this->redirectToRoute("app_login");
         }
     }
+    /*============================================================================================== */
 
+    /*============================================================================================== */
     #[Route('/contacto/insertar', name: 'insertar_contacto')]
     public function insertar(ManagerRegistry $doctrine): Response
     {
@@ -88,28 +101,45 @@ class ContactoController extends AbstractController
             return new Response("Error insertando objetos");
         }
     }
+    /*============================================================================================== */
 
+    /*============================================================================================== */
     #[Route('/contactos', name: 'app_listado_contactos')]
-    public function index(ManagerRegistry $doctrine): Response
+    public function index(ManagerRegistry $doctrine, SessionInterface $session): Response
     {
+        if ($this->getUser()) {
 
-        $repositorio = $doctrine->getRepository(Contacto::class);
-        $contactos = $repositorio->findAll();
+            $repositorio = $doctrine->getRepository(Contacto::class);
+            $contactos = $repositorio->findAll();
 
-        return $this->render('lista_contactos.html.twig', [
-            'controller_name' => 'ListadoController', "contactos" => $contactos
-        ]);
+            return $this->render('lista_contactos.html.twig', [
+                'controller_name' => 'ListadoController', "contactos" => $contactos
+            ]);
+        } else {
+            $session->set('redirect_to', 'app_listado_contactos');
+            return $this->redirectToRoute("app_login");
+        }
     }
+    /*============================================================================================== */
 
+    /*============================================================================================== */
     #[Route('/contacto/{codigo}', name: 'ficha_contacto')]
-    public function ficha(ManagerRegistry $doctrine, $codigo): Response
+    public function ficha(ManagerRegistry $doctrine, $codigo, SessionInterface $session): Response
     {
-        $repositorio = $doctrine->getRepository(Contacto::class);
-        $contacto = $repositorio->find($codigo);
+        if ($this->getUser()) {
+            $repositorio = $doctrine->getRepository(Contacto::class);
+            $contacto = $repositorio->find($codigo);
 
-        return $this->render('ficha_contacto.html.twig', ['contacto' => $contacto]);
+            return $this->render('ficha_contacto.html.twig', ['contacto' => $contacto]);
+        } else {
+            $session->set('redirect_to', 'ficha_contacto');
+            $session->set('codigo', $codigo);
+            return $this->redirectToRoute("app_login");
+        }
     }
+    /*============================================================================================== */
 
+    /*============================================================================================== */
     #[Route('/contacto/buscar/{texto}', name: 'app_contacto_buscar')]
     public function buscar(ManagerRegistry $doctrine, $texto): Response
     {
@@ -118,7 +148,9 @@ class ContactoController extends AbstractController
 
         return $this->render('lista_contactos.html.twig', ['contactos' => $contactos]);
     }
+    /*============================================================================================== */
 
+    /*============================================================================================== */
     #[Route('/contacto/update/{id}/{nombre}', name: 'app_contacto_modificar')]
     public function update(ManagerRegistry $doctrine, $id, $nombre): Response
     {
@@ -137,10 +169,13 @@ class ContactoController extends AbstractController
             return $this->render('ficha_contacto.html.twig', ['contacto' => null]);
         }
     }
+    /*============================================================================================== */
 
+    /*============================================================================================== */
     #[Route('/contacto/delete/{id}', name: 'app_contacto_modificar')]
-    public function delete(ManagerRegistry $doctrine, $id): Response
+    public function delete(ManagerRegistry $doctrine, $id, SessionInterface $session): Response
     {
+        if ($this->getUser()) {
         $entityManager = $doctrine->getManager();
         $repositorio = $doctrine->getRepository(Contacto::class);
         $contacto = $repositorio->find($id);
@@ -148,15 +183,21 @@ class ContactoController extends AbstractController
             try {
                 $entityManager->remove($contacto);
                 $entityManager->flush();
-                return new Response("Contacto eliminado");
+                return $this->redirectToRoute("app_listado_contactos");
             } catch (\Exception $e) {
                 return new Response("Error eliminando contacto");
             }
         } else {
             return $this->render('ficha_contacto.html.twig', ['contacto' => $contacto]);
         }
+    }else{
+            $session->set('redirect_to', 'ficha_contacto');
+            return $this->redirectToRoute("app_login");
     }
+    }
+    /*============================================================================================== */
 
+    /*============================================================================================== */
     #[Route('/contacto/insertarConProvincia', name: 'app_contacto_insertar_con_provincia')]
     public function insertarConProvincia(ManagerRegistry $doctrine): Response
     {
@@ -177,7 +218,9 @@ class ContactoController extends AbstractController
         $entityManager->flush();
         return $this->render('ficha_contacto.html.twig', ['contacto' => $contacto]);
     }
+    /*============================================================================================== */
 
+    /*============================================================================================== */
     #[Route('/contacto/insertarSinProvincia', name: 'app_contacto_insertar_con_provincia')]
     public function insertarSinProvincia(ManagerRegistry $doctrine): Response
     {
@@ -198,7 +241,5 @@ class ContactoController extends AbstractController
         $entityManager->flush();
         return $this->render('ficha_contacto.html.twig', ['contacto' => $contacto]);
     }
-
-    
-
+    /*============================================================================================== */
 }

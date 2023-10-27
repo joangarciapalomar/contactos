@@ -11,6 +11,10 @@ use App\Entity\Provincia;
 use App\Form\ContactoType;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Session\SessionInterface;
+use Symfony\Component\Filesystem\Filesystem;
+use Symfony\Component\HttpFoundation\File\Exception\FileException;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
+use Symfony\Component\String\Slugger\SluggerInterface;
 
 
 
@@ -26,8 +30,9 @@ class ContactoController extends AbstractController
 
     /*============================================================================================== */
     #[Route('/contacto/nuevo', name: 'nuevo_contacto')]
-    public function nuevo(ManagerRegistry $doctrine, Request $request): Response
+    public function nuevo(ManagerRegistry $doctrine, SluggerInterface $slugger, Request $request, SessionInterface $session): Response
     {
+        if ($this->getUser()) {
         $contacto = new Contacto();
 
         $formulario = $this->createForm(ContactoType::class, $contacto);
@@ -38,8 +43,43 @@ class ContactoController extends AbstractController
             $entityManager = $doctrine->getManager();
             $entityManager->persist($contacto);
             $entityManager->flush();
-            return $this->redirectToRoute('ficha_contacto', ["codigo" => $contacto->getId()]);
-        }
+            $file = $formulario->get('file')->getData();
+                    if ($file) {
+                        $originalFilename = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
+                        // This is needed to safely include the file name as part of the URL
+                        $safeFilename = $slugger->slug($originalFilename);
+                        $newFilename = $safeFilename . '-' . uniqid() . '.' . $file->guessExtension();
+    
+                        // Move the file to the directory where images are stored
+                        try {
+                            $file->move(
+                                $this->getParameter('images_directory'),
+                                $newFilename
+                            );
+                            
+                            $filesystem = new Filesystem();
+                            $filesystem->copy(
+                                $this->getParameter('images_directory') . '/' . $newFilename,
+                                true
+                            );
+                        } catch (FileException $e) {
+                            // Handle the exception if something happens during file upload
+                        }
+    
+                        // Update the 'file$filename' property to store the PDF file name
+                        // instead of its contents
+                        $contacto->setFile($newFilename);
+                    }
+    
+                    // Flush the changes to the database
+                    $entityManager->flush();
+    
+                    return $this->redirectToRoute('ficha_contacto', ["codigo" => $contacto->getId()]);
+                }
+            } else {
+                $session->set('redirect_to', 'ficha_contacto');
+                return $this->redirectToRoute("app_login");
+            }
 
         return $this->render('nuevo.html.twig', array('formulario' => $formulario->createView()));
     }
@@ -47,30 +87,63 @@ class ContactoController extends AbstractController
 
     /*============================================================================================== */
     #[Route('/contacto/editar/{codigo}', name: 'editar_contacto')]
-    public function editar(ManagerRegistry $doctrine, Request $request, $codigo, SessionInterface $session)
+    public function editar(ManagerRegistry $doctrine, Request $request, SluggerInterface $slugger, $codigo, SessionInterface $session)
     {
         if ($this->getUser()) {
             $repositorio = $doctrine->getRepository(Contacto::class);
-
+    
             $contacto = $repositorio->find($codigo);
             if ($contacto) {
                 $formulario = $this->createForm(ContactoType::class, $contacto);
-
+    
                 $formulario->handleRequest($request);
-
+    
                 if ($formulario->isSubmitted() && $formulario->isValid()) {
                     $contacto = $formulario->getData();
                     $entityManager = $doctrine->getManager();
                     $entityManager->persist($contacto);
+                    
+                    $file = $formulario->get('file')->getData();
+                    if ($file) {
+                        $originalFilename = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
+                        // This is needed to safely include the file name as part of the URL
+                        $safeFilename = $slugger->slug($originalFilename);
+                        $newFilename = $safeFilename . '-' . uniqid() . '.' . $file->guessExtension();
+    
+                        // Move the file to the directory where images are stored
+                        try {
+                            $file->move(
+                                $this->getParameter('images_directory'),
+                                $newFilename
+                            );
+                            
+                            $filesystem = new Filesystem();
+                            $filesystem->copy(
+                                $this->getParameter('images_directory') . '/' . $newFilename,
+                                true
+                            );
+                        } catch (FileException $e) {
+                            // Handle the exception if something happens during file upload
+                        }
+    
+                        // Update the 'file$filename' property to store the PDF file name
+                        // instead of its contents
+                        $contacto->setFile($newFilename);
+                    }
+    
+                    // Flush the changes to the database
                     $entityManager->flush();
+    
                     return $this->redirectToRoute('ficha_contacto', ["codigo" => $contacto->getId()]);
                 }
-                return $this->render('editar.html.twig', array(
-                    'formulario' => $formulario->createView()
-                ));
+    
+                return $this->render('editar.html.twig', [
+                    'formulario' => $formulario->createView(),
+                    'images' => $contacto,
+                ]);
             } else {
                 return $this->render('ficha_contacto.html.twig', [
-                    'contacto' => NULL
+                    'contacto' => null,
                 ]);
             }
         } else {
@@ -176,24 +249,24 @@ class ContactoController extends AbstractController
     public function delete(ManagerRegistry $doctrine, $id, SessionInterface $session): Response
     {
         if ($this->getUser()) {
-        $entityManager = $doctrine->getManager();
-        $repositorio = $doctrine->getRepository(Contacto::class);
-        $contacto = $repositorio->find($id);
-        if ($contacto) {
-            try {
-                $entityManager->remove($contacto);
-                $entityManager->flush();
-                return $this->redirectToRoute("app_listado_contactos");
-            } catch (\Exception $e) {
-                return new Response("Error eliminando contacto");
+            $entityManager = $doctrine->getManager();
+            $repositorio = $doctrine->getRepository(Contacto::class);
+            $contacto = $repositorio->find($id);
+            if ($contacto) {
+                try {
+                    $entityManager->remove($contacto);
+                    $entityManager->flush();
+                    return $this->redirectToRoute("app_listado_contactos");
+                } catch (\Exception $e) {
+                    return new Response("Error eliminando contacto");
+                }
+            } else {
+                return $this->render('ficha_contacto.html.twig', ['contacto' => $contacto]);
             }
         } else {
-            return $this->render('ficha_contacto.html.twig', ['contacto' => $contacto]);
-        }
-    }else{
             $session->set('redirect_to', 'ficha_contacto');
             return $this->redirectToRoute("app_login");
-    }
+        }
     }
     /*============================================================================================== */
 
